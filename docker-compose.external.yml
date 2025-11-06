@@ -1,0 +1,16 @@
+services:
+  client:
+    environment:
+      # External LLM Settings
+      LLM_PROVIDER: "${LLM_PROVIDER:?Error: Please set LLM_PROVIDER in .env file}"
+
+  llm-dispatcher:
+    environment:
+      # External LLM Settings
+      LLM_PROVIDER: "${LLM_PROVIDER:?Error: Please set LLM_PROVIDER in .env file}"
+      LLM_API_KEY: "${LLM_API_KEY:?Error: Please set LLM_API_KEY in .env file}"
+      LLM_API_ENDPOINT: "${LLM_API_ENDPOINT:?Error: Please set LLM_API_ENDPOINT in .env file}"
+      LLM_MODEL: ${LLM_MODEL:-}
+      # Optional: Additional headers or parameters
+      LLM_API_HEADERS: ${LLM_API_HEADERS:-}
+      LLM_API_VERSION: ${LLM_API_VERSION:-}

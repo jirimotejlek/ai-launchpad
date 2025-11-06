@@ -1,0 +1,28 @@
+[server]
+headless = true
+address = "0.0.0.0"
+enableCORS = true
+enableXsrfProtection = false
+runOnSave = true
+fileWatcherType = "poll"
+
+[browser]
+gatherUsageStats = false
+
+[runner]
+magicEnabled = true
+fastReruns = true
+
+[client]
+showErrorDetails = true
+toolbarMode = "auto"
+
+[logger]
+level = "info"
+
+[global]
+developmentMode = false
+
+# For custom widget development, run Streamlit locally on your host:
+# streamlit run app.py --global.developmentMode=true
+# This bypasses Docker networking restrictions while developing widgets

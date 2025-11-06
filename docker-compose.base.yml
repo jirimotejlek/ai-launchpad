@@ -1,0 +1,43 @@
+services:
+  client:
+    build: ./client
+    command: streamlit run /app/app.py
+    ports: ["8501:8501"]
+    volumes:
+      - ./client:/app
+      # for development
+      - ./client/.streamlit/config.dev.toml:/app/.streamlit/config.toml
+      # for deployment
+      #- ./client/.streamlit/config.prod.toml:/app/.streamlit/config.toml
+    environment:
+      # LLM Dispatcher
+      LLM_DISPATCHER: llm-dispatcher
+      LLM_DISPATCHER_PORT: 5100
+      # Streamlit settings
+      STREAMLIT_WATCH_USE_POLLING: "true"
+      STREAMLIT_DEV_FRONTEND: "false"
+      # Python path for imports
+      PYTHONPATH: /app
+    networks: [backend]
+
+  llm-dispatcher:
+    build:
+      context: ./llm_dispatcher
+      args:
+        LLM_PROVIDER: ${LLM_PROVIDER:-local}
+    restart: unless-stopped
+    ports:
+      - "5100:5100"
+    environment:
+      # Flask settings
+      FLASK_ENV: development
+      FLASK_DEBUG: "true"
+    volumes:
+      - ./llm_dispatcher:/app
+    networks: [backend]    
+   
+volumes:
+  ollama_data:
+
+networks:
+  backend:

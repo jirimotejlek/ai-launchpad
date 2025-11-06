@@ -1,0 +1,38 @@
+services:
+  llm:
+    build: ./ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    environment:
+      # Ollama settings
+      OLLAMA_HOST: "0.0.0.0"
+      OLLAMA_MODELS: "/root/.ollama/models"
+      # Model to preload
+      OLLAMA_MODEL: "gemma3n:e2b"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks: [backend]
+    # GPU support (uncomment if you have NVIDIA GPU)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  client:
+    environment:
+      # LLM Settings for local
+      LLM_PROVIDER: local
+
+  llm-dispatcher:
+    environment:
+      # LLM Settings
+      LLM_PROVIDER: local
+      LLM_HOST: llm
+      LLM_PORT: 11434
+      LLM_MODEL: "gemma3n:e2b"
+    depends_on:
+      - llm

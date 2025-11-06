@@ -1,0 +1,40 @@
+[server]
+headless = true
+# Note: port setting is ignored when developmentMode=true
+# Use command line: --server.port=8501
+runOnSave = true
+fileWatcherType = "auto"
+
+[runner]
+magicEnabled = true
+fastReruns = true
+
+[client]
+showErrorDetails = true
+toolbarMode = "auto"
+
+[logger]
+level = "info"
+
+[global]
+developmentMode = false
+
+# LOCAL DEVELOPMENT CONFIG (not Docker)
+# 
+# developmentMode = true has KNOWN BUGS:
+# - 404 routing errors
+# - Port 3000 connection failures  
+# - Not needed for component development
+#
+# For custom components, use streamlit.components.v1 API instead
+# See: https://docs.streamlit.io/develop/concepts/custom-components
+#
+# Run with:
+#   streamlit run app.py --server.runOnSave=true
+# 
+# This gives you:
+# - Hot reload on file changes
+# - Full component development
+# - Reliable connections
+# - Standard port (8501)
+
