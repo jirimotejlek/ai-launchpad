@@ -1,21 +1,21 @@
-# 🚀 AI Launchpad
+# AI Launchpad
 
 A minimal Streamlit AI application template that supports both **local LLM** (via Ollama) and **external LLM providers** (OpenAI, Anthropic, etc.). Perfect for quickly building AI-powered web applications with Docker.
 
-## ✨ Features
+## Features
 
-- 🐳 **Fully Dockerized** - No local Python installation required
-- 🔥 **Hot Reload** - Code changes appear instantly during development
-- 🏠 **Local LLM Support** - Run Ollama models without API costs
-- 🌐 **External LLM Support** - Connect to OpenAI, Anthropic, Mistral, and more
-- 🛠️ **VS Code Dev Containers** - Seamless development experience
-- 🎯 **Production Ready** - Easy switch between dev and prod configurations
+- **Fully Dockerized** - No local Python installation required
+- **Hot Reload** - Code changes appear instantly during development
+- **Local LLM Support** - Run Ollama models without API costs
+- **External LLM Support** - Connect to OpenAI, Anthropic, Mistral, and more
+- **VS Code Dev Containers** - Seamless development experience
+- **Production Ready** - Easy switch between dev and prod configurations
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
-This template consists of 3 simple Docker containers:
+This template consists of three Docker containers:
 
 - **client** - Streamlit web interface (Python)
 - **llm-dispatcher** - API gateway for LLM services (Flask)
@@ -43,9 +43,9 @@ This template consists of 3 simple Docker containers:
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### 🏠 Local LLM (Default - No API Key Required)
+### Local LLM (Default - No API Key Required)
 
 Run everything locally with Ollama:
 
@@ -60,9 +60,9 @@ chmod +x launchpad.sh
 ./launchpad.sh run-local
 ```
 
-Visit **http://localhost:8501** and click the test button!
+Visit `http://localhost:8501`.
 
-### 🌐 External LLM Provider
+### External LLM Provider
 
 Use OpenAI, Anthropic, or other providers:
 
@@ -93,7 +93,7 @@ launchpad run-external
 
 ---
 
-## 📋 Available Commands
+## Available Commands
 
 ### Windows (`launchpad.bat`)
 
@@ -129,7 +129,7 @@ launchpad help              # Show help
 
 ---
 
-## 🛠️ Development Workflow
+## Development Workflow
 
 ### Daily Development
 
@@ -154,7 +154,7 @@ Your code is **bind-mounted** into containers, so changes appear immediately:
 - Edit files in `client/` → Streamlit auto-reloads
 - Edit files in `llm_dispatcher/` → Flask auto-reloads
 
-**Custom Component/Widget Development:** 
+**Custom Component/Widget Development:**
 
 Streamlit's `developmentMode=true` has known bugs (404 errors, connection issues). For custom component development, use Streamlit's official component template instead:
 
@@ -185,29 +185,29 @@ streamlit run app.py --server.runOnSave=true
 
 **For Component Development Workflow:**
 1. Create components in `client/components/` directory
-2. Use `streamlit.components.v1` API (doesn't need `developmentMode`)
+2. Use the `streamlit.components.v1` API (does not require `developmentMode`)
 3. Run with `--server.runOnSave=true` for hot reload
-4. See: https://docs.streamlit.io/develop/concepts/custom-components
+4. See: [Streamlit custom components](https://docs.streamlit.io/develop/concepts/custom-components)
 
 **Why avoid `developmentMode=true`?**
-- ❌ Known routing bugs (404 errors)
-- ❌ Port binding issues
-- ❌ Doesn't work in Docker
-- ❌ Unreliable even locally
-- ✅ Not needed for component development (use `streamlit.components.v1` instead)
+- Known routing bugs (404 errors)
+- Port binding issues
+- Doesn't work in Docker
+- Unreliable even locally
+- Not needed for component development (use `streamlit.components.v1` instead)
 
 **Benefits of this approach:**
-- ✅ Reliable hot reload
-- ✅ Works on standard port (8501)
-- ✅ Full component development capabilities
-- ✅ Same environment as Docker
+- Reliable hot reload
+- Works on standard port (8501)
+- Full component development capabilities
+- Same environment as Docker
 
 ### When to Rebuild
 
 Rebuild only when you change:
 - `requirements.txt` (new Python packages)
 - `Dockerfile` (container configuration)
-- LLM provider (switching local ↔ external)
+- LLM provider (switching between local and external)
 
 ```bash
 launchpad build-local    # or build-external
@@ -215,7 +215,7 @@ launchpad build-local    # or build-external
 
 ---
 
-## 💻 VS Code Dev Containers
+## VS Code Dev Containers
 
 For the best development experience:
 
@@ -231,10 +231,10 @@ Now your IDE runs inside the container with full IntelliSense and linting!
 
 ---
 
-## 🌍 Supported LLM Providers
+## Supported LLM Providers
 
 ### Local
-- **Ollama** - Run models locally (default: gemma3n:e2b)
+- **Ollama** - Run models locally (default: `gemma3n:e2b`)
   - No API costs
   - Full privacy
   - Works offline
@@ -249,7 +249,7 @@ See `env_templates/` directory for configuration examples.
 
 ---
 
-## 🗝️ Troubleshooting
+## Troubleshooting
 
 ### Container name conflicts
 
@@ -335,7 +335,7 @@ launchpad logs llm
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 ai-launchpad/
@@ -364,7 +364,7 @@ ai-launchpad/
 
 ---
 
-## 🔄 Running Multiple Instances
+## Running Multiple Instances
 
 Want to run multiple projects based on this template simultaneously?
 
@@ -391,7 +391,7 @@ docker compose -p my-custom-name -f docker-compose.base.yml -f docker-compose.lo
 
 ---
 
-## 🎯 Next Steps
+## Next Steps
 
 This template gives you a working AI application. Here's how to build on it:
 
@@ -427,12 +427,12 @@ volumes:
 
 
 **Production config changes:**
-- ✅ XSRF protection enabled
-- ✅ Error details hidden from users
-- ✅ Minimal toolbar mode
-- ✅ Warning-level logging only
-- ✅ Fast reruns disabled for stability
-- ✅ 200MB upload limit
+- XSRF protection enabled
+- Error details hidden from users
+- Minimal toolbar mode
+- Warning-level logging only
+- Fast reruns disabled for stability
+- 200MB upload limit
 
 Then rebuild:
 ```bash
@@ -451,7 +451,7 @@ launchpad run-local
 
 ---
 
-## 📝 Environment Variables
+## Environment Variables
 
 ### Client Container
 - `LLM_DISPATCHER` - Hostname of LLM dispatcher (default: `llm-dispatcher`)
@@ -468,7 +468,7 @@ launchpad run-local
 
 ---
 
-## ❤️ Contributing
+## Contributing
 
 This is a minimal template - feel free to fork and customize for your needs!
 
@@ -476,10 +476,10 @@ If you find bugs or have suggestions, please open an issue.
 
 ---
 
-## 📄 License
+## License
 
 See LICENSE file for details.
 
 ---
 
-**Happy building! 🚀**
+**Happy building!**
