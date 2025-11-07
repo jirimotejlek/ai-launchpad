@@ -1,9 +1,13 @@
 @echo off
 setlocal
 
+rem Get current directory name as project name
+for %%I in (.) do set "PROJECT_NAME=%%~nxI"
+
 set BASE_FILES=-f docker-compose.base.yml
 set LOCAL_FILES=%BASE_FILES% -f docker-compose.local.yml
 set EXTERNAL_FILES=%BASE_FILES% -f docker-compose.external.yml
+set COMPOSE_ARGS=-p %PROJECT_NAME%
 
 if "%1"=="" goto :help
 if "%1"=="help" goto :help
@@ -38,7 +42,7 @@ echo ===========================================
 echo.
 echo.
 shift
-docker compose %LOCAL_FILES% up %1 %2 %3 %4 %5 %6 %7 %8 %9
+docker compose %COMPOSE_ARGS% %LOCAL_FILES% up %1 %2 %3 %4 %5 %6 %7 %8 %9
 goto :eof
 
 :run-external
@@ -67,45 +71,45 @@ echo ===========================================
 echo.
 echo.
 shift
-docker compose %EXTERNAL_FILES% up %1 %2 %3 %4 %5 %6 %7 %8 %9
+docker compose %COMPOSE_ARGS% %EXTERNAL_FILES% up %1 %2 %3 %4 %5 %6 %7 %8 %9
 goto :eof
 
 :build-local
 echo Building services with local LLM...
 shift
-docker compose %LOCAL_FILES% build %1 %2 %3 %4 %5 %6 %7 %8 %9
+docker compose %COMPOSE_ARGS% %LOCAL_FILES% build %1 %2 %3 %4 %5 %6 %7 %8 %9
 goto :eof
 
 :build-external
 echo Building services for external LLM provider...
 shift
-docker compose %EXTERNAL_FILES% build %1 %2 %3 %4 %5 %6 %7 %8 %9
+docker compose %COMPOSE_ARGS% %EXTERNAL_FILES% build %1 %2 %3 %4 %5 %6 %7 %8 %9
 goto :eof
 
 :stop
 echo Stopping services...
 shift
 rem Just stop containers, don't remove them
-docker compose %LOCAL_FILES% stop %1 %2 %3 %4 %5 %6 %7 %8 %9 2>nul
-if errorlevel 1 docker compose %EXTERNAL_FILES% stop %1 %2 %3 %4 %5 %6 %7 %8 %9 2>nul
+docker compose %COMPOSE_ARGS% %LOCAL_FILES% stop %1 %2 %3 %4 %5 %6 %7 %8 %9 2>nul
+if errorlevel 1 docker compose %COMPOSE_ARGS% %EXTERNAL_FILES% stop %1 %2 %3 %4 %5 %6 %7 %8 %9 2>nul
 goto :eof
 
 :restart
 echo Restarting services...
 shift
 rem Restart whichever configuration is currently stopped
-docker compose %LOCAL_FILES% restart %1 %2 %3 %4 %5 %6 %7 %8 %9 2>nul
-if errorlevel 1 docker compose %EXTERNAL_FILES% restart %1 %2 %3 %4 %5 %6 %7 %8 %9 2>nul
+docker compose %COMPOSE_ARGS% %LOCAL_FILES% restart %1 %2 %3 %4 %5 %6 %7 %8 %9 2>nul
+if errorlevel 1 docker compose %COMPOSE_ARGS% %EXTERNAL_FILES% restart %1 %2 %3 %4 %5 %6 %7 %8 %9 2>nul
 goto :eof
 
 :status
 echo Project containers status:
-docker compose %LOCAL_FILES% ps 2>nul || docker compose %EXTERNAL_FILES% ps 2>nul || echo No active compose configuration found
+docker compose %COMPOSE_ARGS% %LOCAL_FILES% ps 2>nul || docker compose %COMPOSE_ARGS% %EXTERNAL_FILES% ps 2>nul || echo No active compose configuration found
 goto :eof
 
 :logs
 shift
-docker compose %LOCAL_FILES% logs -f %1 %2 %3 %4 %5 %6 %7 %8 %9
+docker compose %COMPOSE_ARGS% %LOCAL_FILES% logs -f %1 %2 %3 %4 %5 %6 %7 %8 %9
 goto :eof
 
 :remove
@@ -114,18 +118,13 @@ set /p CONFIRM="Are you sure? (y/N) "
 if /i "%CONFIRM%"=="y" (
     echo Detecting project containers...
     
-    rem Get current directory name as project name
-    for %%I in (.) do set "DIR_NAME=%%~nxI"
-    rem Convert to lowercase and replace special chars with hyphen (simplified)
-    set "PROJECT_NAME=%DIR_NAME%"
-    
     rem Try graceful shutdown with compose
     echo Stopping services...
-    docker compose %LOCAL_FILES% down --remove-orphans 2>nul
+    docker compose %COMPOSE_ARGS% %LOCAL_FILES% down --remove-orphans 2>nul
     set "LLM_API_KEY=dummy"
     set "LLM_API_ENDPOINT=dummy"
     set "LLM_PROVIDER=dummy"
-    docker compose %EXTERNAL_FILES% down --remove-orphans 2>nul
+    docker compose %COMPOSE_ARGS% %EXTERNAL_FILES% down --remove-orphans 2>nul
     
     rem Remove only containers from this project by label
     echo Removing project containers...
@@ -135,9 +134,9 @@ if /i "%CONFIRM%"=="y" (
     
     rem Remove volumes by project name pattern
     echo Removing project volumes...
-    docker volume ls -q | findstr /i "%DIR_NAME%" >nul 2>&1
+    docker volume ls -q | findstr /i "%PROJECT_NAME%" >nul 2>&1
     if not errorlevel 1 (
-        for /f "tokens=*" %%i in ('docker volume ls -q ^| findstr /i "%DIR_NAME%"') do docker volume rm -f %%i 2>nul
+        for /f "tokens=*" %%i in ('docker volume ls -q ^| findstr /i "%PROJECT_NAME%"') do docker volume rm -f %%i 2>nul
     )
     
     echo Project containers and volumes removed

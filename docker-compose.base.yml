@@ -1,6 +1,7 @@
 services:
   client:
     build: ./client
+    image: ai-launchpad-client:latest
     command: streamlit run /app/app.py
     ports: ["8501:8501"]
     volumes:
@@ -25,6 +26,7 @@ services:
       context: ./llm_dispatcher
       args:
         LLM_PROVIDER: ${LLM_PROVIDER:-local}
+    image: ai-launchpad-llm-dispatcher:latest
     restart: unless-stopped
     ports:
       - "5100:5100"

@@ -1,9 +1,13 @@
 #!/bin/bash
 # Docker Compose management script
 
+# Get current directory name as project name
+PROJECT_NAME=$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+
 BASE_FILES="-f docker-compose.base.yml"
 LOCAL_FILES="$BASE_FILES -f docker-compose.local.yml"
 EXTERNAL_FILES="$BASE_FILES -f docker-compose.external.yml"
+COMPOSE_ARGS="-p $PROJECT_NAME"
 
 show_help() {
     echo "Usage: ./launchpad.sh [command]"
@@ -58,7 +62,7 @@ case "$1" in
         echo ""
         echo ""
         shift
-        docker compose $LOCAL_FILES up "$@"
+        docker compose $COMPOSE_ARGS $LOCAL_FILES up "$@"
         ;;
     run-external)
         check_env_file
@@ -78,42 +82,42 @@ case "$1" in
         echo ""
         echo ""
         shift
-        docker compose $EXTERNAL_FILES up "$@"
+        docker compose $COMPOSE_ARGS $EXTERNAL_FILES up "$@"
         ;;
     build-local)
         echo "Building services with local LLM..."
         shift
-        docker compose $LOCAL_FILES build "$@"
+        docker compose $COMPOSE_ARGS $LOCAL_FILES build "$@"
         ;;
     build-external)
         echo "Building services for external LLM provider..."
         shift
-        docker compose $EXTERNAL_FILES build "$@"
+        docker compose $COMPOSE_ARGS $EXTERNAL_FILES build "$@"
         ;;
     stop)
         echo "Stopping services..."
         shift
         # Just stop containers, don't remove them
-        docker compose $LOCAL_FILES stop "$@" 2>/dev/null || docker compose $EXTERNAL_FILES stop "$@" 2>/dev/null
+        docker compose $COMPOSE_ARGS $LOCAL_FILES stop "$@" 2>/dev/null || docker compose $COMPOSE_ARGS $EXTERNAL_FILES stop "$@" 2>/dev/null
         ;;
     restart)
         echo "Restarting services..."
         shift
         # Restart whichever configuration is currently stopped
-        docker compose $LOCAL_FILES restart "$@" 2>/dev/null || docker compose $EXTERNAL_FILES restart "$@" 2>/dev/null
+        docker compose $COMPOSE_ARGS $LOCAL_FILES restart "$@" 2>/dev/null || docker compose $COMPOSE_ARGS $EXTERNAL_FILES restart "$@" 2>/dev/null
         ;;
     status)
         echo "Project containers status:"
         # Try both configurations to show all project containers
-        docker compose $LOCAL_FILES ps 2>/dev/null || docker compose $EXTERNAL_FILES ps 2>/dev/null || echo "No active compose configuration found"
+        docker compose $COMPOSE_ARGS $LOCAL_FILES ps 2>/dev/null || docker compose $COMPOSE_ARGS $EXTERNAL_FILES ps 2>/dev/null || echo "No active compose configuration found"
         ;;
     logs)
         shift
         # Check which compose files have running containers
-        if docker compose $LOCAL_FILES ps -q 2>/dev/null | grep -q .; then
-            docker compose $LOCAL_FILES logs -f "$@"
-        elif docker compose $EXTERNAL_FILES ps -q 2>/dev/null | grep -q .; then
-            docker compose $EXTERNAL_FILES logs -f "$@"
+        if docker compose $COMPOSE_ARGS $LOCAL_FILES ps -q 2>/dev/null | grep -q .; then
+            docker compose $COMPOSE_ARGS $LOCAL_FILES logs -f "$@"
+        elif docker compose $COMPOSE_ARGS $EXTERNAL_FILES ps -q 2>/dev/null | grep -q .; then
+            docker compose $COMPOSE_ARGS $EXTERNAL_FILES logs -f "$@"
         else
             echo "No running services found"
         fi
@@ -126,13 +130,10 @@ case "$1" in
             shift
             echo "Detecting project containers..."
             
-            # Get the compose project name (defaults to directory name)
-            PROJECT_NAME=${COMPOSE_PROJECT_NAME:-$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')}
-            
             # First try graceful shutdown with compose
             echo "Stopping services..."
-            docker compose $LOCAL_FILES down --remove-orphans 2>/dev/null || true
-            LLM_API_KEY=dummy LLM_API_ENDPOINT=dummy LLM_PROVIDER=dummy docker compose $EXTERNAL_FILES down --remove-orphans 2>/dev/null || true
+            docker compose $COMPOSE_ARGS $LOCAL_FILES down --remove-orphans 2>/dev/null || true
+            LLM_API_KEY=dummy LLM_API_ENDPOINT=dummy LLM_PROVIDER=dummy docker compose $COMPOSE_ARGS $EXTERNAL_FILES down --remove-orphans 2>/dev/null || true
             
             # List and remove only containers from this project
             echo "Removing project containers..."
