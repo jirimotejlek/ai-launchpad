@@ -4,6 +4,8 @@ setlocal
 rem Get current directory name as project name
 for %%I in (.) do set "PROJECT_NAME=%%~nxI"
 
+setlocal enabledelayedexpansion
+
 set BASE_FILES=-f docker-compose.base.yml
 set LOCAL_FILES=%BASE_FILES% -f docker-compose.local.yml
 set EXTERNAL_FILES=%BASE_FILES% -f docker-compose.external.yml
@@ -18,6 +20,60 @@ if exist local-llm.config (
 )
 rem Trim whitespace
 for /f "tokens=* delims= " %%a in ("%LOCAL_LLM_BACKEND%") do set LOCAL_LLM_BACKEND=%%a
+
+rem Read optional services from services.config
+set SERVICE_FILES=
+if exist services.config (
+    for /f "tokens=1,2 delims==" %%a in ('findstr /v "^#" services.config') do (
+        set SERVICE_NAME=%%a
+        set SERVICE_ENABLED=%%b
+        rem Trim whitespace
+        for /f "tokens=* delims= " %%x in ("!SERVICE_ENABLED!") do set SERVICE_ENABLED=%%x
+        
+        rem Check if service is enabled (true)
+        if /i "!SERVICE_ENABLED!"=="true" (
+            rem Extract service name from ENABLE_SERVICENAME
+            set SERVICE_NAME=%%a
+            set SERVICE_NAME=!SERVICE_NAME:ENABLE_=!
+            rem Convert to lowercase
+            for %%y in (a b c d e f g h i j k l m n o p q r s t u v w x y z) do call set SERVICE_NAME=%%SERVICE_NAME:%%y=%%y%%
+            for %%y in (A B C D E F G H I J K L M N O P Q R S T U V W X Y Z) do call set SERVICE_NAME=%%SERVICE_NAME:%%y=%%y%%
+            set SERVICE_NAME=!SERVICE_NAME:A=a!
+            set SERVICE_NAME=!SERVICE_NAME:B=b!
+            set SERVICE_NAME=!SERVICE_NAME:C=c!
+            set SERVICE_NAME=!SERVICE_NAME:D=d!
+            set SERVICE_NAME=!SERVICE_NAME:E=e!
+            set SERVICE_NAME=!SERVICE_NAME:F=f!
+            set SERVICE_NAME=!SERVICE_NAME:G=g!
+            set SERVICE_NAME=!SERVICE_NAME:H=h!
+            set SERVICE_NAME=!SERVICE_NAME:I=i!
+            set SERVICE_NAME=!SERVICE_NAME:J=j!
+            set SERVICE_NAME=!SERVICE_NAME:K=k!
+            set SERVICE_NAME=!SERVICE_NAME:L=l!
+            set SERVICE_NAME=!SERVICE_NAME:M=m!
+            set SERVICE_NAME=!SERVICE_NAME:N=n!
+            set SERVICE_NAME=!SERVICE_NAME:O=o!
+            set SERVICE_NAME=!SERVICE_NAME:P=p!
+            set SERVICE_NAME=!SERVICE_NAME:Q=q!
+            set SERVICE_NAME=!SERVICE_NAME:R=r!
+            set SERVICE_NAME=!SERVICE_NAME:S=s!
+            set SERVICE_NAME=!SERVICE_NAME:T=t!
+            set SERVICE_NAME=!SERVICE_NAME:U=u!
+            set SERVICE_NAME=!SERVICE_NAME:V=v!
+            set SERVICE_NAME=!SERVICE_NAME:W=w!
+            set SERVICE_NAME=!SERVICE_NAME:X=x!
+            set SERVICE_NAME=!SERVICE_NAME:Y=y!
+            set SERVICE_NAME=!SERVICE_NAME:Z=z!
+            
+            rem Add service compose file
+            set SERVICE_FILES=!SERVICE_FILES! -f docker-compose.!SERVICE_NAME!.yml
+        )
+    )
+)
+
+rem Append service files to compose file lists
+set LOCAL_FILES=!LOCAL_FILES!!SERVICE_FILES!
+set EXTERNAL_FILES=!EXTERNAL_FILES!!SERVICE_FILES!
 
 if "%1"=="" goto :help
 if "%1"=="help" goto :help
@@ -176,6 +232,10 @@ echo.
 echo Local LLM Backend:
 echo   Current: %LOCAL_LLM_BACKEND%
 echo   Configure: Edit local-llm.config (options: ollama, vllm)
+echo.
+echo Optional Services:
+echo   Configure: Edit services.config to enable/disable services
+echo   Example: ENABLE_POSTGRES=true
 echo.
 echo Examples:
 echo   launchpad.bat run-local

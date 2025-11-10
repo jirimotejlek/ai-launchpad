@@ -590,6 +590,172 @@ docker compose -p my-custom-name -f docker-compose.base.yml -f docker-compose.lo
 
 ---
 
+## Optional Services
+
+The AI Launchpad supports a modular architecture that makes it easy to add optional services like databases, caching, and more. Services are managed through a simple configuration file.
+
+### Enabling Services
+
+1. **Edit `services.config`** in the project root
+2. Set the service to `true`:
+   ```bash
+   ENABLE_POSTGRES=true
+   ```
+3. Rebuild and restart:
+   ```bash
+   # Windows
+   launchpad build-local
+   launchpad run-local
+
+   # macOS/Linux
+   ./launchpad.sh build-local
+   ./launchpad.sh run-local
+   ```
+
+### Available Services
+
+#### PostgreSQL Database
+
+**Purpose:** User authentication, persistent data storage
+
+**Setup:**
+
+1. Enable in `services.config`:
+   ```bash
+   ENABLE_POSTGRES=true
+   ```
+
+2. Create `.env.postgres` file with database credentials:
+   ```bash
+   cp env_templates/postgres.env .env.postgres
+   # Edit .env.postgres and set a secure password
+   ```
+
+3. Start the service:
+   ```bash
+   launchpad build-local
+   launchpad run-local
+   ```
+
+**Connection Details:**
+- Host: `postgres` (from containers) or `localhost` (from host)
+- Port: `5432`
+- Database: `ai_launchpad` (configurable in `.env.postgres`)
+- User/Password: As configured in `.env.postgres`
+
+**Example Usage (SQLAlchemy):**
+
+Add to your service's `requirements.txt`:
+```txt
+Flask-SQLAlchemy==3.1.1
+psycopg2-binary==2.9.9
+```
+
+Connect from `llm_dispatcher/app.py` or `client/app.py`:
+```python
+from flask_sqlalchemy import SQLAlchemy
+import os
+
+# Connection via standard environment variables
+db_user = os.getenv('DB_USER', 'admin')
+db_name = os.getenv('DB_NAME', 'ai_launchpad')
+db_password = os.getenv('POSTGRES_PASSWORD')
+
+app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://{db_user}:{db_password}@postgres:5432/{db_name}'
+db = SQLAlchemy(app)
+
+# Use the pre-created users table
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    preferences = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime)
+    updated_at = db.Column(db.DateTime)
+```
+
+**Security Best Practices:**
+- Never commit `.env.postgres` file (already in `.gitignore`)
+- Keep it separate from your main `.env` (for LLM configuration)
+- Use strong passwords (16+ characters)
+- Always hash passwords before storing:
+  ```python
+  from werkzeug.security import generate_password_hash, check_password_hash
+  
+  # Creating user
+  password_hash = generate_password_hash(password)
+  
+  # Authenticating
+  is_valid = check_password_hash(stored_hash, provided_password)
+  ```
+
+**Pre-configured Schema:**
+
+The database automatically initializes with a `users` table:
+```sql
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(80) UNIQUE NOT NULL,
+    email VARCHAR(120) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    preferences JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+For more details, see `postgres/README.md`.
+
+### Adding New Services
+
+The modular architecture makes it easy to add new services:
+
+1. **Create service directory** (e.g., `redis/`) with:
+   - `Dockerfile` - Service container configuration
+   - `README.md` - Service documentation
+   - Any initialization scripts
+
+2. **Create `docker-compose.servicename.yml`**:
+   ```yaml
+   services:
+     servicename:
+       build: ./servicename
+       image: ai-launchpad-servicename:latest
+       restart: unless-stopped
+       volumes:
+         - servicename_data:/data
+       networks:
+         - backend
+
+   volumes:
+     servicename_data:
+
+   networks:
+     backend:
+   ```
+
+3. **Add to `services.config`**:
+   ```bash
+   ENABLE_SERVICENAME=false
+   ```
+
+4. **Add volume to `docker-compose.base.yml`**:
+   ```yaml
+   volumes:
+     servicename_data:  # Service description
+   ```
+
+5. **Create env template** (if needed):
+   ```bash
+   echo "# Service Configuration" > env_templates/servicename.env
+   ```
+
+The launch scripts will automatically detect and include enabled services - no code changes needed!
+
+---
+
 ## Next Steps
 
 This template gives you a working AI application. Here's how to build on it:
@@ -605,9 +771,17 @@ This template gives you a working AI application. Here's how to build on it:
 - Add custom prompts or tools
 
 ### 3. Add More Services
-- Database (PostgreSQL, MongoDB)
-- Vector store (ChromaDB, Pinecone)
-- Background workers (Celery)
+
+The template now supports a **modular service architecture**! See the [Optional Services](#optional-services) section for:
+- **PostgreSQL** - Already integrated and ready to enable
+- **Add your own** - Easy pattern for Redis, MongoDB, Elasticsearch, etc.
+
+Example services you can add:
+- Vector stores (ChromaDB, Pinecone, Weaviate)
+- Caching (Redis, Memcached)
+- Background workers (Celery with RabbitMQ/Redis)
+- Search engines (Elasticsearch, Meilisearch)
+- Message queues (RabbitMQ, Kafka)
 
 ### 4. Deploy to Production
 
