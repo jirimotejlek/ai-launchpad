@@ -18,6 +18,33 @@ if [ -f local-llm.config ]; then
     fi
 fi
 
+# Read optional services from services.config
+SERVICE_FILES=""
+if [ -f services.config ]; then
+    while IFS='=' read -r key value; do
+        # Skip comments and empty lines
+        if [[ ! "$key" =~ ^#.* ]] && [ -n "$key" ]; then
+            # Trim whitespace
+            key=$(echo "$key" | tr -d ' ')
+            value=$(echo "$value" | tr -d ' ')
+            
+            # Check if service is enabled (true)
+            if [ "$value" = "true" ]; then
+                # Extract service name from ENABLE_SERVICENAME
+                service_name="${key#ENABLE_}"
+                # Convert to lowercase
+                service_name=$(echo "$service_name" | tr '[:upper:]' '[:lower:]')
+                # Add service compose file
+                SERVICE_FILES="$SERVICE_FILES -f docker-compose.${service_name}.yml"
+            fi
+        fi
+    done < services.config
+fi
+
+# Append service files to compose file lists
+LOCAL_FILES="$LOCAL_FILES$SERVICE_FILES"
+EXTERNAL_FILES="$EXTERNAL_FILES$SERVICE_FILES"
+
 show_help() {
     echo "Usage: ./launchpad.sh [command]"
     echo ""
@@ -36,6 +63,10 @@ show_help() {
     echo "Local LLM Backend:"
     echo "  Current: $LOCAL_LLM_BACKEND"
     echo "  Configure: Edit local-llm.config (options: ollama, vllm)"
+    echo ""
+    echo "Optional Services:"
+    echo "  Configure: Edit services.config to enable/disable services"
+    echo "  Example: ENABLE_POSTGRES=true"
     echo ""
     echo "Examples:"
     echo "  ./launchpad.sh run-local"

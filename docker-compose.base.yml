@@ -41,6 +41,7 @@ services:
 volumes:
   ollama_data:
   vllm_cache:
+  postgres_data:  # PostgreSQL data (enabled via services.config)
 
 networks:
   backend:
