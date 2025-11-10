@@ -15,13 +15,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Environment variables
-LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'local')
+LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'ollama')
 LLM_API_KEY = os.getenv('LLM_API_KEY')
 LLM_API_ENDPOINT = os.getenv('LLM_API_ENDPOINT')
 LLM_MODEL = os.getenv('LLM_MODEL', 'gpt-3.5-turbo')
 OLLAMA_HOST = os.getenv('LLM_HOST', 'llm')
 OLLAMA_PORT = int(os.getenv('LLM_PORT', '11434'))
 OLLAMA_MODEL = os.getenv('LLM_MODEL', 'gemma3n:e2b')
+VLLM_HOST = os.getenv('VLLM_HOST', 'llm-vllm')
+VLLM_PORT = int(os.getenv('VLLM_PORT', '8000'))
+VLLM_MODEL = os.getenv('VLLM_MODEL', 'facebook/opt-125m')
 
 # Conditional imports based on LLM_PROVIDER
 if LLM_PROVIDER == 'openai':
@@ -105,13 +108,46 @@ def query_ollama(prompt: str, model: str = None, stream: bool = False) -> Dict[s
     except Exception as e:
         return {"error": f"Failed to query Ollama: {str(e)}"}
 
+def query_vllm(prompt: str, model: str = None) -> Dict[str, Any]:
+    """Send a query to vLLM using OpenAI-compatible API"""
+    url = f"http://{VLLM_HOST}:{VLLM_PORT}/v1/completions"
+    
+    payload = {
+        "model": model or VLLM_MODEL,
+        "prompt": prompt,
+        "max_tokens": 1000,
+        "temperature": 0.7
+    }
+    
+    try:
+        response = requests.post(url, json=payload, timeout=60)
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                "response": data['choices'][0]['text'],
+                "model": data.get('model', model or VLLM_MODEL),
+                "usage": data.get('usage', {}),
+                "finish_reason": data['choices'][0].get('finish_reason', 'stop')
+            }
+        else:
+            return {"error": f"vLLM returned status {response.status_code}: {response.text}"}
+    except requests.exceptions.Timeout:
+        return {"error": "Request to vLLM timed out"}
+    except Exception as e:
+        return {"error": f"Failed to query vLLM: {str(e)}"}
+
 def query_llm_provider(prompt: str, model: str = None) -> Dict[str, Any]:
     """Route query to appropriate LLM provider"""
     if LLM_PROVIDER == 'openai':
         return query_openai(prompt, model)
     elif LLM_PROVIDER == 'anthropic':
         return query_anthropic(prompt, model)
+    elif LLM_PROVIDER == 'ollama':
+        return query_ollama(prompt, model)
+    elif LLM_PROVIDER == 'vllm':
+        return query_vllm(prompt, model)
     elif LLM_PROVIDER == 'local':
+        # Backward compatibility - default to ollama
         return query_ollama(prompt, model)
     else:
         return {"error": f"Unsupported LLM provider: {LLM_PROVIDER}"}
@@ -129,9 +165,15 @@ def health_check():
     }
     
     # Check LLM service based on provider
-    if LLM_PROVIDER == 'local':
+    if LLM_PROVIDER in ['ollama', 'local']:
         try:
             response = requests.get(f"http://{OLLAMA_HOST}:{OLLAMA_PORT}/api/tags", timeout=2)
+            health_status["services"]["llm"] = "up" if response.status_code == 200 else "down"
+        except:
+            health_status["services"]["llm"] = "down"
+    elif LLM_PROVIDER == 'vllm':
+        try:
+            response = requests.get(f"http://{VLLM_HOST}:{VLLM_PORT}/v1/models", timeout=2)
             health_status["services"]["llm"] = "up" if response.status_code == 200 else "down"
         except:
             health_status["services"]["llm"] = "down"
@@ -172,13 +214,21 @@ def query_llm():
     }
     
     # Add provider-specific metrics
-    if LLM_PROVIDER == 'local':
+    if LLM_PROVIDER in ['ollama', 'local']:
         response_data.update({
             'total_duration': result.get('total_duration', 0),
             'load_duration': result.get('load_duration', 0),
             'prompt_eval_duration': result.get('prompt_eval_duration', 0),
             'eval_duration': result.get('eval_duration', 0),
             'eval_count': result.get('eval_count', 0)
+        })
+    elif LLM_PROVIDER == 'vllm':
+        usage = result.get('usage', {})
+        response_data.update({
+            'total_tokens': usage.get('total_tokens', 0),
+            'prompt_tokens': usage.get('prompt_tokens', 0),
+            'completion_tokens': usage.get('completion_tokens', 0),
+            'finish_reason': result.get('finish_reason', 'stop')
         })
     elif LLM_PROVIDER == 'openai':
         response_data.update({
@@ -197,13 +247,13 @@ def query_llm():
 @app.route('/models', methods=['GET'])
 def list_models():
     """List available models based on LLM provider"""
-    if LLM_PROVIDER == 'local':
+    if LLM_PROVIDER in ['ollama', 'local']:
         try:
             response = requests.get(f"http://{OLLAMA_HOST}:{OLLAMA_PORT}/api/tags", timeout=5)
             if response.status_code == 200:
                 data = response.json()
                 return jsonify({
-                    'provider': 'local',
+                    'provider': 'ollama',
                     'models': [
                         {
                             'name': model['name'],
@@ -216,6 +266,27 @@ def list_models():
                 })
             else:
                 return jsonify({'error': 'Failed to fetch models from Ollama'}), 500
+        except Exception as e:
+            return jsonify({'error': f'Failed to list models: {str(e)}'}), 500
+    
+    elif LLM_PROVIDER == 'vllm':
+        try:
+            response = requests.get(f"http://{VLLM_HOST}:{VLLM_PORT}/v1/models", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                return jsonify({
+                    'provider': 'vllm',
+                    'models': [
+                        {
+                            'name': model['id'],
+                            'created': model.get('created', 0)
+                        }
+                        for model in data.get('data', [])
+                    ],
+                    'default_model': VLLM_MODEL
+                })
+            else:
+                return jsonify({'error': 'Failed to fetch models from vLLM'}), 500
         except Exception as e:
             return jsonify({'error': f'Failed to list models: {str(e)}'}), 500
     
@@ -262,7 +333,7 @@ def index():
                 'method': 'POST',
                 'body': {
                     'prompt': 'Your question here',
-                    'model': f'model name (optional, defaults to {LLM_MODEL if LLM_PROVIDER != "local" else OLLAMA_MODEL})'
+                    'model': f'model name (optional, defaults to {LLM_MODEL if LLM_PROVIDER not in ["local", "ollama", "vllm"] else (VLLM_MODEL if LLM_PROVIDER == "vllm" else OLLAMA_MODEL)})'
                 }
             }
         }

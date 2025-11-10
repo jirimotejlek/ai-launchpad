@@ -40,6 +40,7 @@ services:
    
 volumes:
   ollama_data:
+  vllm_cache:
 
 networks:
   backend:

@@ -9,11 +9,20 @@ LOCAL_FILES="$BASE_FILES -f docker-compose.local.yml"
 EXTERNAL_FILES="$BASE_FILES -f docker-compose.external.yml"
 COMPOSE_ARGS="-p $PROJECT_NAME"
 
+# Read local LLM backend from config file
+LOCAL_LLM_BACKEND="ollama"
+if [ -f local-llm.config ]; then
+    LOCAL_LLM_BACKEND=$(grep -v '^#' local-llm.config | grep 'LOCAL_LLM_BACKEND' | cut -d'=' -f2 | tr -d ' ')
+    if [ -z "$LOCAL_LLM_BACKEND" ]; then
+        LOCAL_LLM_BACKEND="ollama"
+    fi
+fi
+
 show_help() {
     echo "Usage: ./launchpad.sh [command]"
     echo ""
     echo "Commands:"
-    echo "  run-local      Start services with local LLM"
+    echo "  run-local      Start services with local LLM (backend: $LOCAL_LLM_BACKEND)"
     echo "  run-external   Start services with external LLM provider"
     echo "  build-local    Build containers for local LLM"
     echo "  build-external Build containers for external LLM"
@@ -23,6 +32,10 @@ show_help() {
     echo "  logs           Show logs from running services"
     echo "  remove         Remove all project containers and volumes"
     echo "  help           Show this help message"
+    echo ""
+    echo "Local LLM Backend:"
+    echo "  Current: $LOCAL_LLM_BACKEND"
+    echo "  Configure: Edit local-llm.config (options: ollama, vllm)"
     echo ""
     echo "Examples:"
     echo "  ./launchpad.sh run-local"
@@ -46,13 +59,14 @@ check_env_file() {
 
 case "$1" in
     run-local)
-        echo "Starting services with local LLM..."
+        echo "Starting services with local LLM ($LOCAL_LLM_BACKEND)..."
         echo ""
         echo ""
         echo "==============================================="
         echo "==============================================="
         echo ""
         echo "     🚀 AI LAUNCHPAD STARTING"
+        echo "     Backend: $LOCAL_LLM_BACKEND"
         echo ""
         echo "     📱 Once ready, open:"
         echo "     http://localhost:8501"
@@ -62,7 +76,8 @@ case "$1" in
         echo ""
         echo ""
         shift
-        docker compose $COMPOSE_ARGS $LOCAL_FILES up "$@"
+        export COMPOSE_PROFILES="$LOCAL_LLM_BACKEND"
+        docker compose $COMPOSE_ARGS --profile "$LOCAL_LLM_BACKEND" $LOCAL_FILES up "$@"
         ;;
     run-external)
         check_env_file
@@ -85,9 +100,10 @@ case "$1" in
         docker compose $COMPOSE_ARGS $EXTERNAL_FILES up "$@"
         ;;
     build-local)
-        echo "Building services with local LLM..."
+        echo "Building services with local LLM ($LOCAL_LLM_BACKEND)..."
         shift
-        docker compose $COMPOSE_ARGS $LOCAL_FILES build "$@"
+        export COMPOSE_PROFILES="$LOCAL_LLM_BACKEND"
+        docker compose $COMPOSE_ARGS --profile "$LOCAL_LLM_BACKEND" $LOCAL_FILES build "$@"
         ;;
     build-external)
         echo "Building services for external LLM provider..."

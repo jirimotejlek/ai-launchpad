@@ -1,5 +1,6 @@
 services:
   llm:
+    profiles: [ollama]
     build: ./ollama
     image: ai-launchpad-ollama:latest
     restart: unless-stopped
@@ -23,17 +24,53 @@ services:
               count: all
               capabilities: [gpu]
 
+  llm-vllm:
+    profiles: [vllm]
+    build: ./vllm
+    image: ai-launchpad-vllm:latest
+    restart: unless-stopped
+    ports:
+      - "8100:8100"
+    environment:
+      # vLLM settings
+      VLLM_HOST: "0.0.0.0"
+      VLLM_PORT: "8100"
+      # Model to preload (HuggingFace format)
+      VLLM_MODEL: ${VLLM_MODEL:-facebook/opt-125m}
+      # GPU memory utilization (0.0-1.0, default 0.85 = 85%)
+      # Reduce if you get "Free memory is less than desired" errors
+      VLLM_GPU_MEMORY_UTILIZATION: ${VLLM_GPU_MEMORY_UTILIZATION:-0.65}
+      # HuggingFace token from .env (for gated models)
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+    volumes:
+      # Persist HuggingFace model cache to avoid redownloading
+      - vllm_cache:/root/.cache/huggingface
+    networks: [backend]
+    # GPU support enabled by default
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
   client:
+    profiles: [ollama, vllm]
     environment:
       # LLM Settings for local
-      LLM_PROVIDER: local
+      LLM_PROVIDER: ${LOCAL_LLM_BACKEND:-ollama}
 
   llm-dispatcher:
+    profiles: [ollama, vllm]
     environment:
-      # LLM Settings
-      LLM_PROVIDER: local
-      LLM_HOST: llm
-      LLM_PORT: 11434
-      LLM_MODEL: "gemma3n:e2b"
-    depends_on:
-      - llm
+      # LLM Settings (will be set based on which backend is active)
+      LLM_PROVIDER: ${LOCAL_LLM_BACKEND:-ollama}
+      # Ollama settings
+      LLM_HOST: ${LLM_HOST:-llm}
+      LLM_PORT: ${LLM_PORT:-11434}
+      LLM_MODEL: ${LLM_MODEL:-gemma3n:e2b}
+      # vLLM settings
+      VLLM_HOST: ${VLLM_HOST:-llm-vllm}
+      VLLM_PORT: ${VLLM_PORT:-8100}
+      VLLM_MODEL: ${VLLM_MODEL:-facebook/opt-125m}

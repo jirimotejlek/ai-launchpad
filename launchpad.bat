@@ -9,6 +9,16 @@ set LOCAL_FILES=%BASE_FILES% -f docker-compose.local.yml
 set EXTERNAL_FILES=%BASE_FILES% -f docker-compose.external.yml
 set COMPOSE_ARGS=-p %PROJECT_NAME%
 
+rem Read local LLM backend from config file
+set LOCAL_LLM_BACKEND=ollama
+if exist local-llm.config (
+    for /f "tokens=1,2 delims==" %%a in ('findstr /v "^#" local-llm.config ^| findstr "LOCAL_LLM_BACKEND"') do (
+        set LOCAL_LLM_BACKEND=%%b
+    )
+)
+rem Trim whitespace
+for /f "tokens=* delims= " %%a in ("%LOCAL_LLM_BACKEND%") do set LOCAL_LLM_BACKEND=%%a
+
 if "%1"=="" goto :help
 if "%1"=="help" goto :help
 if "%1"=="run-local" goto :run-local
@@ -26,13 +36,14 @@ echo.
 goto :help
 
 :run-local
-echo Starting services with local LLM...
+echo Starting services with local LLM (%LOCAL_LLM_BACKEND%)...
 echo.
 echo.
 echo ===========================================
 echo ===========================================
 echo.
 echo     AI LAUNCHPAD STARTING
+echo     Backend: %LOCAL_LLM_BACKEND%
 echo.
 echo     Once ready, open:
 echo     http://localhost:8501
@@ -42,7 +53,8 @@ echo ===========================================
 echo.
 echo.
 shift
-docker compose %COMPOSE_ARGS% %LOCAL_FILES% up %1 %2 %3 %4 %5 %6 %7 %8 %9
+set "COMPOSE_PROFILES=%LOCAL_LLM_BACKEND%"
+docker compose %COMPOSE_ARGS% --profile %LOCAL_LLM_BACKEND% %LOCAL_FILES% up %1 %2 %3 %4 %5 %6 %7 %8 %9
 goto :eof
 
 :run-external
@@ -75,9 +87,10 @@ docker compose %COMPOSE_ARGS% %EXTERNAL_FILES% up %1 %2 %3 %4 %5 %6 %7 %8 %9
 goto :eof
 
 :build-local
-echo Building services with local LLM...
+echo Building services with local LLM (%LOCAL_LLM_BACKEND%)...
 shift
-docker compose %COMPOSE_ARGS% %LOCAL_FILES% build %1 %2 %3 %4 %5 %6 %7 %8 %9
+set "COMPOSE_PROFILES=%LOCAL_LLM_BACKEND%"
+docker compose %COMPOSE_ARGS% --profile %LOCAL_LLM_BACKEND% %LOCAL_FILES% build %1 %2 %3 %4 %5 %6 %7 %8 %9
 goto :eof
 
 :build-external
@@ -149,7 +162,7 @@ goto :eof
 echo Usage: launchpad.bat [command]
 echo.
 echo Commands:
-echo   run-local      Start services with local LLM
+echo   run-local      Start services with local LLM (backend: %LOCAL_LLM_BACKEND%)
 echo   run-external   Start services with external LLM provider
 echo   build-local    Build containers for local LLM
 echo   build-external Build containers for external LLM
@@ -159,6 +172,10 @@ echo   status         Show status of project containers
 echo   logs           Show logs from running services
 echo   remove         Remove all project containers and volumes
 echo   help           Show this help message
+echo.
+echo Local LLM Backend:
+echo   Current: %LOCAL_LLM_BACKEND%
+echo   Configure: Edit local-llm.config (options: ollama, vllm)
 echo.
 echo Examples:
 echo   launchpad.bat run-local
