@@ -1,6 +1,7 @@
 import streamlit as st
 import llm_test
 import database_test
+import chroma_test
 
 # Configuration
 st.set_page_config(
@@ -22,6 +23,11 @@ def main():
     
     # Database Test Section
     database_test.render()
+    
+    st.markdown("---")
+    
+    # ChromaDB Test Section
+    chroma_test.render()
     
     st.markdown("---")
     st.caption("Build your AI-powered Streamlit app with AI Launchpad! 🎉")

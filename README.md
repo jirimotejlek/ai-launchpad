@@ -708,6 +708,79 @@ CREATE TABLE users (
 
 For more details, see `postgres/README.md`.
 
+#### ChromaDB Vector Database
+
+**Purpose:** Vector embeddings storage, semantic search, RAG applications
+
+**Setup:**
+
+1. Enable in `services.config`:
+   ```bash
+   ENABLE_CHROMA=true
+   ```
+
+2. Start the service:
+   ```bash
+   launchpad build-local
+   launchpad run-local
+   ```
+
+**Connection Details:**
+- Host: `chroma` (from containers) or `localhost` (from host)
+- Port: `8000`
+- Protocol: HTTP
+
+**Example Usage (Python):**
+
+Add to your service's `requirements.txt`:
+```txt
+chromadb==1.0.15
+```
+
+Connect from `llm_dispatcher/app.py` or `client/app.py`:
+```python
+import chromadb
+
+# Connect to ChromaDB
+client = chromadb.HttpClient(host='chroma', port=8000)
+
+# Create or get a collection
+collection = client.get_or_create_collection(name="my_collection")
+
+# Add documents (ChromaDB auto-generates embeddings)
+collection.add(
+    documents=[
+        "ChromaDB is a vector database",
+        "AI Launchpad supports multiple services"
+    ],
+    metadatas=[{"source": "doc1"}, {"source": "doc2"}],
+    ids=["id1", "id2"]
+)
+
+# Query for similar documents
+results = collection.query(
+    query_texts=["What is ChromaDB?"],
+    n_results=2
+)
+
+print(results['documents'])
+```
+
+**Common Use Cases:**
+- **Semantic Search** - Find similar documents by meaning
+- **RAG (Retrieval Augmented Generation)** - Provide context to LLMs
+- **Document Similarity** - Match and group related content
+- **Recommendation Systems** - Find similar items
+
+**Features:**
+- Automatic embedding generation (no separate model needed)
+- Built-in similarity search
+- Metadata filtering
+- Persistent storage via Docker volume
+- HTTP API (no authentication required for development)
+
+For more details, see `chroma/README.md`.
+
 ### Adding New Services
 
 The modular architecture makes it easy to add new services:
