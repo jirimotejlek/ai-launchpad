@@ -1,0 +1,45 @@
+services:
+  chroma:
+    image: chromadb/chroma:latest
+    restart: unless-stopped
+    volumes:
+      - chroma_data:/chroma/chroma
+    networks:
+      - backend
+    ports:
+      - "8000:8000"  # Remove or comment out in production
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+
+  # Extend client service to include ChromaDB environment variables
+  client:
+    environment:
+      CHROMA_HOST: chroma
+      CHROMA_PORT: 8000
+
+  # Extend llm-dispatcher service to include ChromaDB environment variables
+  llm-dispatcher:
+    environment:
+      CHROMA_HOST: chroma
+      CHROMA_PORT: 8000
+
+volumes:
+  chroma_data:
+
+networks:
+  backend:
+
