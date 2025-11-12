@@ -1,10 +1,11 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import requests
 import os
 from functools import wraps
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Generator
 import logging
+import json
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -23,7 +24,7 @@ OLLAMA_HOST = os.getenv('LLM_HOST', 'llm')
 OLLAMA_PORT = int(os.getenv('LLM_PORT', '11434'))
 OLLAMA_MODEL = os.getenv('LLM_MODEL', 'gemma3n:e2b')
 VLLM_HOST = os.getenv('VLLM_HOST', 'llm-vllm')
-VLLM_PORT = int(os.getenv('VLLM_PORT', '8000'))
+VLLM_PORT = int(os.getenv('VLLM_PORT', '8100'))
 VLLM_MODEL = os.getenv('VLLM_MODEL', 'facebook/opt-125m')
 
 # Conditional imports based on LLM_PROVIDER
@@ -136,6 +137,133 @@ def query_vllm(prompt: str, model: str = None) -> Dict[str, Any]:
     except Exception as e:
         return {"error": f"Failed to query vLLM: {str(e)}"}
 
+def stream_openai(prompt: str, model: str = None) -> Generator[str, None, None]:
+    """Stream responses from OpenAI"""
+    if not openai_client:
+        yield f"data: {json.dumps({'error': 'OpenAI client not available'})}\n\n"
+        return
+    
+    try:
+        stream = openai_client.chat.completions.create(
+            model=model or LLM_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1000,
+            stream=True
+        )
+        
+        total_tokens = 0
+        for chunk in stream:
+            if chunk.choices[0].delta.content:
+                token = chunk.choices[0].delta.content
+                yield f"data: {json.dumps({'token': token})}\n\n"
+                total_tokens += 1
+        
+        # Send final metadata
+        yield f"data: {json.dumps({'done': True, 'model': model or LLM_MODEL, 'total_tokens': total_tokens})}\n\n"
+    except Exception as e:
+        yield f"data: {json.dumps({'error': f'Failed to stream from OpenAI: {str(e)}'})}\n\n"
+
+def stream_anthropic(prompt: str, model: str = None) -> Generator[str, None, None]:
+    """Stream responses from Anthropic"""
+    if not anthropic_client:
+        yield f"data: {json.dumps({'error': 'Anthropic client not available'})}\n\n"
+        return
+    
+    try:
+        with anthropic_client.messages.stream(
+            model=model or LLM_MODEL or "claude-3-sonnet-20240229",
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}]
+        ) as stream:
+            for text in stream.text_stream:
+                yield f"data: {json.dumps({'token': text})}\n\n"
+        
+        # Get final message for metadata
+        message = stream.get_final_message()
+        yield f"data: {json.dumps({'done': True, 'model': message.model, 'input_tokens': message.usage.input_tokens, 'output_tokens': message.usage.output_tokens})}\n\n"
+    except Exception as e:
+        yield f"data: {json.dumps({'error': f'Failed to stream from Anthropic: {str(e)}'})}\n\n"
+
+def stream_ollama(prompt: str, model: str = None) -> Generator[str, None, None]:
+    """Stream responses from Ollama"""
+    url = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}/api/generate"
+    
+    payload = {
+        "model": model or OLLAMA_MODEL,
+        "prompt": prompt,
+        "stream": True
+    }
+    
+    try:
+        response = requests.post(url, json=payload, stream=True, timeout=60)
+        if response.status_code != 200:
+            yield f"data: {json.dumps({'error': f'Ollama returned status {response.status_code}'})}\n\n"
+            return
+        
+        # Ollama returns newline-delimited JSON
+        for line in response.iter_lines():
+            if line:
+                chunk = json.loads(line)
+                if chunk.get('response'):
+                    yield f"data: {json.dumps({'token': chunk['response']})}\n\n"
+                
+                if chunk.get('done'):
+                    # Send final metadata
+                    metadata = {
+                        'done': True,
+                        'model': chunk.get('model', model or OLLAMA_MODEL),
+                        'total_duration': chunk.get('total_duration', 0),
+                        'load_duration': chunk.get('load_duration', 0),
+                        'prompt_eval_duration': chunk.get('prompt_eval_duration', 0),
+                        'eval_duration': chunk.get('eval_duration', 0),
+                        'eval_count': chunk.get('eval_count', 0)
+                    }
+                    yield f"data: {json.dumps(metadata)}\n\n"
+    except Exception as e:
+        yield f"data: {json.dumps({'error': f'Failed to stream from Ollama: {str(e)}'})}\n\n"
+
+def stream_vllm(prompt: str, model: str = None) -> Generator[str, None, None]:
+    """Stream responses from vLLM"""
+    url = f"http://{VLLM_HOST}:{VLLM_PORT}/v1/completions"
+    
+    payload = {
+        "model": model or VLLM_MODEL,
+        "prompt": prompt,
+        "max_tokens": 1000,
+        "temperature": 0.7,
+        "stream": True
+    }
+    
+    try:
+        response = requests.post(url, json=payload, stream=True, timeout=60)
+        if response.status_code != 200:
+            yield f"data: {json.dumps({'error': f'vLLM returned status {response.status_code}'})}\n\n"
+            return
+        
+        # vLLM returns SSE format
+        total_tokens = 0
+        for line in response.iter_lines():
+            if line:
+                line_str = line.decode('utf-8')
+                if line_str.startswith('data: '):
+                    data_str = line_str[6:]  # Remove 'data: ' prefix
+                    if data_str.strip() == '[DONE]':
+                        break
+                    
+                    try:
+                        chunk = json.loads(data_str)
+                        if chunk.get('choices') and chunk['choices'][0].get('text'):
+                            token = chunk['choices'][0]['text']
+                            yield f"data: {json.dumps({'token': token})}\n\n"
+                            total_tokens += 1
+                    except json.JSONDecodeError:
+                        pass
+        
+        # Send final metadata
+        yield f"data: {json.dumps({'done': True, 'model': model or VLLM_MODEL, 'total_tokens': total_tokens})}\n\n"
+    except Exception as e:
+        yield f"data: {json.dumps({'error': f'Failed to stream from vLLM: {str(e)}'})}\n\n"
+
 def query_llm_provider(prompt: str, model: str = None) -> Dict[str, Any]:
     """Route query to appropriate LLM provider"""
     if LLM_PROVIDER == 'openai':
@@ -151,6 +279,22 @@ def query_llm_provider(prompt: str, model: str = None) -> Dict[str, Any]:
         return query_ollama(prompt, model)
     else:
         return {"error": f"Unsupported LLM provider: {LLM_PROVIDER}"}
+
+def stream_llm_provider(prompt: str, model: str = None) -> Generator[str, None, None]:
+    """Route streaming query to appropriate LLM provider"""
+    if LLM_PROVIDER == 'openai':
+        yield from stream_openai(prompt, model)
+    elif LLM_PROVIDER == 'anthropic':
+        yield from stream_anthropic(prompt, model)
+    elif LLM_PROVIDER == 'ollama':
+        yield from stream_ollama(prompt, model)
+    elif LLM_PROVIDER == 'vllm':
+        yield from stream_vllm(prompt, model)
+    elif LLM_PROVIDER == 'local':
+        # Backward compatibility - default to ollama
+        yield from stream_ollama(prompt, model)
+    else:
+        yield f"data: {json.dumps({'error': f'Unsupported LLM provider: {LLM_PROVIDER}'})}\n\n"
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -244,6 +388,36 @@ def query_llm():
     
     return jsonify(response_data)
 
+@app.route('/query/stream', methods=['POST'])
+def query_llm_stream():
+    """Streaming query to LLM endpoint"""
+    data = request.json
+    
+    if not data or 'prompt' not in data:
+        return jsonify({'error': 'Missing prompt in request body'}), 400
+    
+    prompt = data['prompt']
+    model = data.get('model')
+
+    logger.info(f"Streaming query to {LLM_PROVIDER} LLM with prompt: {prompt[:100]}...")
+    
+    def generate():
+        """Generator function for streaming response"""
+        try:
+            for chunk in stream_llm_provider(prompt, model):
+                yield chunk
+        except Exception as e:
+            yield f"data: {json.dumps({'error': f'Stream error: {str(e)}'})}\n\n"
+    
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no'
+        }
+    )
+
 @app.route('/models', methods=['GET'])
 def list_models():
     """List available models based on LLM provider"""
@@ -326,6 +500,7 @@ def index():
         'endpoints': {
             '/health': 'GET - Health check',
             '/query': 'POST - Direct LLM query',
+            '/query/stream': 'POST - Streaming LLM query',
             '/models': 'GET - List available LLM models'
         },
         'documentation': {
