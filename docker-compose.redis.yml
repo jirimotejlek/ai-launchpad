@@ -1,0 +1,44 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+    ports:
+      - "6379:6379"  # Remove or comment out in production
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 128M
+
+  # Extend client service to include Redis environment variables
+  client:
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+  # Extend llm-dispatcher service to include Redis environment variables
+  llm-dispatcher:
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+volumes:
+  redis_data:
+
+networks:
+  backend:
+
+
