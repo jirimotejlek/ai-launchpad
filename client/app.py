@@ -1,8 +1,8 @@
 import streamlit as st
-import llm_test
-import database_test
-import chroma_test
-import redis_test
+import tests.llm_test as llm_test
+import tests.database_test as database_test
+import tests.chroma_test as chroma_test
+import tests.redis_test as redis_test
 
 # Configuration
 st.set_page_config(
